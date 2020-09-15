@@ -1,0 +1,141 @@
+name: GitHub Actions - Terraform Restore
+on:
+
+####----------------------------------------------------------------------------
+  workflow_dispatch:
+    name: Manual Deployment
+    description: 'Triggering Manual Deployment'
+    inputs:
+      restore-project:
+        description: 'Terraform Restore Project'
+        required: true
+        default: false
+      restore-shaindex:
+        description: 'Terraform Restore Index'
+        required: true
+        default: false
+      logLevel:
+        description: 'Log level'
+        required: true
+        default: 'warning'
+      tags:
+        description: 'Terraform Restore'
+####----------------------------------------------------------------------------
+#   push:
+#     branches: [ master ]
+#     paths:
+#       - action.yaml
+####----------------------------------------------------------------------------
+env:
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_DEFAULT_ACCOUNT: ${{ secrets.AWS_DEFAULT_ACCOUNT }}
+  AWS_DEFAULT_PROFILE: ${{ secrets.AWS_DEFAULT_PROFILE }}
+  AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  ## DEPLOY_TERRAFORM
+  ## DESTROY_TERRAFORM
+  ## DEVOPS_ASSUMEROLE_POLICY
+  ## DEVOPS_BOUNDARIES_POLICY
+  ## DEVOPS_ACCESS_POLICY
+  DEVOPS_ACCESS_ROLE: ${{ secrets.DEVOPS_ACCESS_ROLE }}
+  DEVOPS_ACCOUNT_NAME: ${{ secrets.DEVOPS_ACCOUNT_NAME }}
+  ## INSPECT_DEPLOYMENT
+  PRIVATE_KEYPAIR_FILE: ${{ secrets.PRIVATE_KEYPAIR_FILE }}
+  PRIVATE_KEYPAIR_NAME: ${{ secrets.PRIVATE_KEYPAIR_NAME }}
+  PRIVATE_KEYPAIR_SECRET: ${{ secrets.PRIVATE_KEYPAIR_SECRET }}
+  ## PROVISION_TERRAFORM
+  TARGET_WORKSPACE: dev  ## pipelines/${{ secrets.TARGET_WORKSPACE }}
+  ## UPDATE_PYTHON_LATEST
+  ## UPDATE_SYSTEM_LATEST
+  ##
+####----------------------------------------------------------------------------
+jobs:
+  terraform-restore:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2
+####----------------------------------------------------------------------------
+      ## Environment Variables
+      - name: Environment Variables
+        id: environment-variables
+        run: |
+          ####----------------------------------------------------------------------------
+          ## Parsing GitHub Action - Workflow dispatch (limited to 10 input-params)
+          echo -e "Processing File|Input-based Parameters ... [ 1-10 ]\n" ;
+          ####----------------------------------------------------------------------------
+          eval "echo '::set-env name=SESSION_TIMESTAMP::$(date +"%y%m%d%H%M%S")'" ;
+          restore_project="${{ github.event.inputs.restore-project }}" ;
+          if [[ (${#restore_project} -gt 0) && (${restore_project} != false) ]]; then
+                  echo -e "Target Restore Repository [input-based]: '${restore_project}'" ;
+                  eval "echo '::set-env name=RESTORE_PROJECT::${restore_project}'" ;
+            else  echo -e "\nWarning: Target Restore Project is invalid! " ;
+                  exit 1;
+          fi ;
+          ####----------------------------------------------------------------------------
+          restore_shaindex="${{ github.event.inputs.restore-shaindex }}" ;
+          if [[ (${#restore_shaindex} -gt 0) && (${restore_shaindex} != false) ]]; then
+                  echo -e "Target Restore SHA Index  [input-based]: '${restore_shaindex}'" ;
+                  eval "echo '::set-env name=RESTORE_SHAINDEX::${restore_shaindex}'" ;
+            else  echo -e "\nWarning: Target Restore Point is invalid! " ;
+                  exit 1;
+          fi ;
+####----------------------------------------------------------------------------
+      ## System Requirements
+      - name: System Requirements
+        uses: emvaldes/system-requirements@master
+        id: system-requirements
+        with:
+          install-awscli-tool: true
+          install-default-tools: true
+          install-terraform-cli: latest
+          update-operating-system: true
+          update-python-version: true
+        continue-on-error: false
+####----------------------------------------------------------------------------
+      ## Installed Packages
+      - name: Installed Packages
+        id: installed-packages
+        shell: bash
+        run: |
+          jq --version;
+          aws --version;
+          terraform --version;
+####----------------------------------------------------------------------------
+      ## Requesting Credentials
+      - name: Requesting Credentials
+        uses: emvaldes/generate-credentials@master
+        id: request-credentials
+        with:
+          aws-access-key-id: ${AWS_ACCESS_KEY_ID}
+          aws-default-account: ${AWS_DEFAULT_ACCOUNT}
+          aws-default-profile: ${AWS_DEFAULT_PROFILE}
+          aws-default-region: ${AWS_DEFAULT_REGION}
+          aws-secret-access-key: ${AWS_SECRET_ACCESS_KEY}
+          devops-access-role: ${DEVOPS_ACCESS_ROLE}
+          devops-account-name: ${DEVOPS_ACCOUNT_NAME}
+          session-timestamp: "DevOpsPipeline--${SESSION_TIMESTAMP}"
+        continue-on-error: false
+####----------------------------------------------------------------------------
+      ## Provisioning Access
+      - name: Provisioning Access
+        uses: emvaldes/configure-access@master
+        id: provision-access
+        with:
+          private-keypair-file: ${PRIVATE_KEYPAIR_FILE}
+          private-keypair-secret: "${PRIVATE_KEYPAIR_SECRET}"
+        continue-on-error: false
+####----------------------------------------------------------------------------
+      ## Restore Terraform
+      - name: Restore Terraform
+        uses: ./
+        id: restore-terraform
+        with:
+          restore-terraform: true
+          restore-region: ${AWS_DEFAULT_REGION}
+          restore-project: ${RESTORE_PROJECT}
+          restore-shaindex: ${RESTORE_SHAINDEX}
+## Terraform Log-levels: TRACE, DEBUG, INFO, WARN or ERROR
+          terraform-loglevel: DEBUG
+        continue-on-error: false
+###----------------------------------------------------------------------------

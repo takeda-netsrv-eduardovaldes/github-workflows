@@ -1,0 +1,176 @@
+name: GitHub Actions - Manage Profiles
+on:
+
+####----------------------------------------------------------------------------
+  workflow_dispatch:
+    name: 'Manual Deployment'
+    description: 'Triggering Manual Deployment'
+    inputs:
+      github-personal-token:
+        description: 'GitHub Personal Token'
+        required: false
+        default: false
+      organization-admin:
+        description: 'Organization Administrator'
+        required: false
+        default: false
+      organization-name:
+        description: 'Organization Name/ID'
+        required: false
+        default: false
+      service-account-group:
+        description: 'Service Account Group'
+        required: false
+        default: false
+      service-account-user:
+        description: 'Service Account User'
+        required: false
+        default: false
+      logLevel:
+        description: 'Log level'
+        required: true
+        default: 'warning'
+      tags:
+        description: 'Manage Profiles'
+####----------------------------------------------------------------------------
+  push:
+    branches: [ master ]
+    paths:
+      - action.yaml
+####----------------------------------------------------------------------------
+env:
+  ## AWS_ACCESS_KEY_ID
+  ## AWS_DEFAULT_ACCOUNT
+  ## AWS_DEFAULT_PROFILE
+  ## AWS_DEFAULT_REGION
+  ## AWS_SECRET_ACCESS_KEY
+  ## DEPLOY_TERRAFORM
+  ## DESTROY_TERRAFORM
+  ## DEVOPS_ACCESS_POLICY
+  ## DEVOPS_ACCESS_ROLE
+  ## DEVOPS_ACCOUNT_NAME
+  ## INSPECT_DEPLOYMENT
+  ## PRIVATE_KEYPAIR_FILE
+  ## PRIVATE_KEYPAIR_NAME
+  ## PRIVATE_KEYPAIR_SECRET
+  ## PROVISION_TERRAFORM
+  ## UPDATE_PYTHON_LATEST
+  ## UPDATE_SYSTEM_LATEST
+  ##
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  AWS_DEFAULT_ACCOUNT: ${{ secrets.AWS_DEFAULT_ACCOUNT }}
+  AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+  ##
+  ## Manage Profiles variables
+  GITHUB_PERSONAL_TOKEN: ${{ secrets.GITHUB_PERSONAL_TOKEN }}
+  ## Target GitHub Account/Repository
+  GITHUB_ORGANIZATION_NAME: emvaldes
+  GITHUB_ORGANIZATION_REPO: manage-profiles
+  ## Organization Credentials:
+  ORGANIZATION_ADMIN: default
+  ORGANIZATION_NAME: anonymous
+  ## AWS IAM Group/User credentials-set
+  SERVICE_ACCOUNT_GROUP: devops
+  SERVICE_ACCOUNT_USER: devops
+  ## SSH Access (Private & Public Keys)
+  PRIVATE_KEYPAIR_FILE: ${{ secrets.PRIVATE_KEYPAIR_FILE }}
+  PUBLIC_KEYPAIR_FILE: ${{ secrets.PUBLIC_KEYPAIR_FILE }}
+  ## These are the AWS IAM Roles/Policies
+  DEVOPS_ASSUMEROLE_POLICY: DevOps--Assume-Role.Policy
+  DEVOPS_BOUNDARIES_POLICY: Devops--Permission-Boundaries.Policy
+  ## DevOps Custom Access:
+  DEVOPS_ACCESS_POLICY: DevOps--Custom-Access.Policy
+  DEVOPS_ACCESS_ROLE: DevOps--Custom-Access.Role
+####----------------------------------------------------------------------------
+jobs:
+  configure-access:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2
+####----------------------------------------------------------------------------
+      ## System Requirements
+      - name: System Requirements
+        uses: emvaldes/system-requirements@master
+        id: system-requirements
+        with:
+          install-awscli-tool: true
+          # install-custom-tools: 'netcat'
+          install-default-tools: true
+          # install-terraform-cli: false
+          update-operating-system: true
+          update-python-version: true
+        continue-on-error: false
+#       - name: Check On Failures
+#         if: steps.system-requirements.outputs.status == 'failure'
+#         run: |
+#           echo -e "Warning: System Requirements Failed [Status]: ${{ steps.system-requirements.outputs.status }}" ;
+####----------------------------------------------------------------------------
+      ## Installed Packages
+      - name: Installed Packages
+        id: installed-packages
+        shell: bash
+        run: |
+          python --version;
+          aws --version;
+          jq --version;
+          tree --version;
+####----------------------------------------------------------------------------
+      - name: Requesting Credentials
+        uses: emvaldes/generate-credentials@master
+        id: request-credentials
+        with:
+          aws-access-key-id: ${AWS_ACCESS_KEY_ID}
+          aws-default-account: ${AWS_DEFAULT_ACCOUNT}
+          aws-default-region: ${AWS_DEFAULT_REGION}
+          aws-secret-access-key: ${AWS_SECRET_ACCESS_KEY}
+          devops-access-role: ${DEVOPS_ACCESS_ROLE}
+          devops-account-name: ${DEVOPS_ACCOUNT_NAME}
+          session-timestamp: 'DevOpsPipeline--12345678901234'
+        continue-on-error: false
+#       - name: Check On Failures
+#         if: steps.request-credentials.outputs.status == 'failure'
+#         run: |
+#           echo -e "Warning: Request Credentials Failed [Status]: ${{ steps.request-credentials.outputs.status }}" ;
+####----------------------------------------------------------------------------
+      ## Display Environment
+      - name: Display Environment
+        id: display-environment
+        run: |
+          echo -e "Displaying Enviroment Settings ..." ;
+          echo -e "AWS Access Key-ID: ${AWS_ACCESS_KEY_ID}" ;
+          echo -e "AWS Secret Access Key: ${AWS_SECRET_ACCESS_KEY}" ;
+          echo -e "AWS Session Token: ${AWS_SESSION_TOKEN}" ;
+####----------------------------------------------------------------------------
+      ## Privision Access KeyPair
+      - name: Provisioning Access
+        uses: emvaldes/manage-profiles@master
+        id: manage-profiles
+        with:
+          assume-role-policy: ${ASSUME_ROLE_POLICY}
+          boundaries-policy: ${BOUNDARIES_POLICY}
+          custom-access-policy: ${CUSTOM_ACCESS_POLICY}
+          custom-access-role: ${CUSTOM_ACCESS_ROLE}
+          github-organization-name: ${GITHUB_ORGANIZATION_NAME}
+          github-organization-repo: ${GITHUB_ORGANIZATION_REPO}
+          github-personal-token: ${GITHUB_PERSONAL_TOKEN}
+          organization-admin: ${ORGANIZATION_ADMIN}
+          organization-name: ${ORGANIZATION_NAME}
+          private-keypair-file: ${PRIVATE_KEYPAIR_FILE}
+          public-keypair-file: ${PUBLIC_KEYPAIR_FILE}
+          service-account-group: ${SERVICE_ACCOUNT_GROUP}
+          service-account-user: ${SERVICE_ACCOUNT_USER}
+        continue-on-error: false
+#       - name: Check On Failures
+#         if: steps.provision-access.outputs.status == 'failure'
+#         run: |
+#           echo -e "Warning: Provisioning Access Failed [Status]: ${{ steps.provision-access.outputs.status }}" ;
+####----------------------------------------------------------------------------
+      ## Display Environment
+      - name: Display Environment
+        id: display_environment
+        run: |
+          echo -e "Displaying Enviroment Settings ..." ;
+          echo -e "GitHub Personal Token: ${GITHUB_PERSONAL_TOKEN}" ;
+####----------------------------------------------------------------------------
